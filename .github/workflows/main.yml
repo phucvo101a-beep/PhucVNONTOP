@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Xcode
       run: |
@@ -20,22 +20,22 @@ jobs:
 
     - name: Compile and Package IPA
       run: |
-        # Biên dịch Swift thành binary ARM64 iOS
+        # 1. Biên dịch Swift thành binary ARM64 iOS
         xcrun --sdk iphoneos swiftc -target arm64-apple-ios15.0 \
           -framework UIKit -framework AVKit -framework AVFoundation -framework CoreMedia -framework VideoToolbox -framework SwiftUI \
           SystemMonitor.swift PiPHUDManager.swift ContentView.swift GamingHUDApp.swift \
           -o GamingHUD
 
-        # Tạo cấu trúc App Bundle
+        # 2. Tạo cấu trúc App Bundle
         mkdir -p Payload/GamingHUD.app
         mv GamingHUD Payload/GamingHUD.app/
         cp Info.plist Payload/GamingHUD.app/
 
-        # Đóng gói thành file IPA chuẩn cho ESign
+        # 3. Đóng gói thành file IPA chuẩn cho ESign
         zip -r -y GamingHUD.ipa Payload
 
     - name: Upload IPA Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: GamingHUD-IPA
         path: GamingHUD.ipa
