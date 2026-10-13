@@ -5,19 +5,21 @@ import AVFoundation
 
 public enum HUDDisplayMode: Int {
     case statsOnly = 0       // Bảng chỉ số FPS, RAM, Ping
-    case crosshairOnly = 1   // Tâm ngắm ảo Sniper (Red Dot / Crosshair)
+    case crosshairOnly = 1   // Tâm ngắm ảo Sniper Trong Suốt
     case combo = 2           // Kết hợp cả hai
 }
 
-/// Controller hiển thị giao diện Gaming HUD & Tâm Ngắm Ảo trong cửa sổ PiP nổi
+/// Controller hiển thị giao diện Gaming HUD & Tâm Ngắm Ảo
 public final class HUDViewController: UIViewController {
+    // Stats views
     public let fpsLabel = UILabel()
     public let ramLabel = UILabel()
     public let pingLabel = UILabel()
     public let dotView = UIView()
     public let liveLabel = UILabel()
+    public var statsStack: UIStackView?
     
-    // View tâm ngắm ảo (Crosshair)
+    // Crosshair views (Trong suốt, siêu gọn)
     public let crosshairContainer = UIView()
     public let crosshairCenterDot = UIView()
     public let crosshairTopLine = UIView()
@@ -26,16 +28,11 @@ public final class HUDViewController: UIViewController {
     public let crosshairRightLine = UIView()
     
     public var currentMode: HUDDisplayMode = .statsOnly
-    private var statsStack: UIStackView?
+    public var crosshairColor: UIColor = UIColor(red: 1.0, green: 0.15, blue: 0.35, alpha: 1.0)
+    public var crosshairSize: CGFloat = 6.0
     
     public override func viewDidLoad() {
         super.viewDidLoad()
-        
-        view.backgroundColor = UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95)
-        view.layer.cornerRadius = 14
-        view.layer.borderWidth = 2
-        view.layer.borderColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.85).cgColor
-        view.clipsToBounds = true
         
         setupStatsViews()
         setupCrosshairViews()
@@ -94,8 +91,8 @@ public final class HUDViewController: UIViewController {
             dotView.heightAnchor.constraint(equalToConstant: 8),
             mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8)
+            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
     }
     
@@ -104,16 +101,16 @@ public final class HUDViewController: UIViewController {
         crosshairContainer.backgroundColor = .clear
         view.addSubview(crosshairContainer)
         
-        // Chấm tròn trung tâm màu đỏ Neon
-        crosshairCenterDot.backgroundColor = UIColor(red: 1.0, green: 0.1, blue: 0.3, alpha: 1.0)
-        crosshairCenterDot.layer.cornerRadius = 3.5
+        // Chấm tròn tâm màu đỏ Neon
+        crosshairCenterDot.backgroundColor = crosshairColor
+        crosshairCenterDot.layer.cornerRadius = crosshairSize / 2
         crosshairCenterDot.translatesAutoresizingMaskIntoConstraints = false
         crosshairContainer.addSubview(crosshairCenterDot)
         
-        // 4 vạch ngắm Neon Cyan
-        let lineColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.9)
+        // 4 vạch ngắm Cyan siêu mảnh
+        let cyanColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.95)
         for line in [crosshairTopLine, crosshairBottomLine, crosshairLeftLine, crosshairRightLine] {
-            line.backgroundColor = lineColor
+            line.backgroundColor = cyanColor
             line.layer.cornerRadius = 1
             line.translatesAutoresizingMaskIntoConstraints = false
             crosshairContainer.addSubview(line)
@@ -122,13 +119,13 @@ public final class HUDViewController: UIViewController {
         NSLayoutConstraint.activate([
             crosshairContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             crosshairContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            crosshairContainer.widthAnchor.constraint(equalToConstant: 50),
-            crosshairContainer.heightAnchor.constraint(equalToConstant: 50),
+            crosshairContainer.widthAnchor.constraint(equalToConstant: 60),
+            crosshairContainer.heightAnchor.constraint(equalToConstant: 60),
             
             crosshairCenterDot.centerXAnchor.constraint(equalTo: crosshairContainer.centerXAnchor),
             crosshairCenterDot.centerYAnchor.constraint(equalTo: crosshairContainer.centerYAnchor),
-            crosshairCenterDot.widthAnchor.constraint(equalToConstant: 7),
-            crosshairCenterDot.heightAnchor.constraint(equalToConstant: 7),
+            crosshairCenterDot.widthAnchor.constraint(equalToConstant: crosshairSize),
+            crosshairCenterDot.heightAnchor.constraint(equalToConstant: crosshairSize),
             
             // Top line
             crosshairTopLine.centerXAnchor.constraint(equalTo: crosshairContainer.centerXAnchor),
@@ -163,18 +160,29 @@ public final class HUDViewController: UIViewController {
             statsStack?.isHidden = false
             crosshairContainer.isHidden = true
             view.backgroundColor = UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95)
+            view.layer.cornerRadius = 16
             view.layer.borderWidth = 2
+            view.layer.borderColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.85).cgColor
         case .crosshairOnly:
+            // CHẾ ĐỘ TRONG SUỐT 100% - CHỈ HIỆN ĐÚNG CÁI TÂM
             statsStack?.isHidden = true
             crosshairContainer.isHidden = false
-            view.backgroundColor = UIColor(white: 0.0, alpha: 0.35) // Trong suốt để thấy map game
-            view.layer.borderWidth = 1
+            view.backgroundColor = UIColor(white: 0.0, alpha: 0.01) // Trong suốt hoàn toàn
+            view.layer.borderWidth = 0                             // Xóa bỏ khung viền
+            view.layer.cornerRadius = 0
         case .combo:
             statsStack?.isHidden = false
             crosshairContainer.isHidden = false
             view.backgroundColor = UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95)
+            view.layer.cornerRadius = 16
             view.layer.borderWidth = 2
+            view.layer.borderColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.85).cgColor
         }
+    }
+    
+    public func updateCrosshairColor(_ color: UIColor) {
+        self.crosshairColor = color
+        self.crosshairCenterDot.backgroundColor = color
     }
     
     public func updateStats() {
@@ -189,16 +197,18 @@ public final class HUDViewController: UIViewController {
     }
 }
 
-/// Trình quản lý PiP độc quyền - Hỗ trợ cả Stats Monitor và Tâm Ngắm Ảo (Crosshair HUD)
+/// Trình quản lý PiP với kích thước tối ưu cho Tâm Ngắm Ảo Trong Suốt
 public final class PiPHUDManager: NSObject, ObservableObject {
     public static let shared = PiPHUDManager()
     
     @Published public var isPiPActive: Bool = false
     @Published public var isPiPSupported: Bool = false
     @Published public var selectedMode: HUDDisplayMode = .statsOnly
+    @Published public var selectedColorHex: String = "red"
     
     private var pipController: AVPictureInPictureController?
-    private var hudVC: HUDViewController?
+    public var hudVC: HUDViewController?
+    public var callVC: AVPictureInPictureVideoCallViewController?
     private var updateTimer: Timer?
     
     private override init() {
@@ -224,22 +234,23 @@ public final class PiPHUDManager: NSObject, ObservableObject {
         guard isPiPSupported else { return }
         
         if #available(iOS 15.0, *) {
-            let callVC = AVPictureInPictureVideoCallViewController()
-            callVC.preferredContentSize = CGSize(width: 220, height: 100)
+            let call = AVPictureInPictureVideoCallViewController()
+            adjustSizeForMode(call: call, mode: selectedMode)
             
             let hud = HUDViewController()
-            callVC.addChild(hud)
-            callVC.view.addSubview(hud.view)
-            hud.view.frame = CGRect(x: 0, y: 0, width: 220, height: 100)
+            call.addChild(hud)
+            call.view.addSubview(hud.view)
+            hud.view.frame = call.view.bounds
             hud.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            hud.didMove(toParent: callVC)
+            hud.didMove(toParent: call)
             
             self.hudVC = hud
+            self.callVC = call
             hud.applyMode(selectedMode)
             
             let contentSource = AVPictureInPictureController.ContentSource(
                 activeVideoCallSourceView: sourceView,
-                contentViewController: callVC
+                contentViewController: call
             )
             
             pipController = AVPictureInPictureController(contentSource: contentSource)
@@ -250,17 +261,39 @@ public final class PiPHUDManager: NSObject, ObservableObject {
         startUpdating()
     }
     
+    private func adjustSizeForMode(call: AVPictureInPictureVideoCallViewController, mode: HUDDisplayMode) {
+        if mode == .crosshairOnly {
+            // Kích thước siêu gọn 80x80 cho tâm ngắm trong suốt
+            call.preferredContentSize = CGSize(width: 80, height: 80)
+        } else {
+            // Kích thước bảng chỉ số
+            call.preferredContentSize = CGSize(width: 220, height: 110)
+        }
+    }
+    
     public func setMode(_ mode: HUDDisplayMode) {
         self.selectedMode = mode
         hudVC?.applyMode(mode)
+        if let call = self.callVC {
+            adjustSizeForMode(call: call, mode: mode)
+        }
+    }
+    
+    public func setCrosshairColor(_ color: UIColor, hex: String) {
+        self.selectedColorHex = hex
+        hudVC?.updateCrosshairColor(color)
     }
     
     public func startPiP() {
         guard let pip = pipController else { return }
+        startUpdating()
+        hudVC?.applyMode(selectedMode)
+        if let call = self.callVC {
+            adjustSizeForMode(call: call, mode: selectedMode)
+        }
+        hudVC?.updateStats()
+        
         if !pip.isPictureInPictureActive {
-            startUpdating()
-            hudVC?.applyMode(selectedMode)
-            hudVC?.updateStats()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 pip.startPictureInPicture()
             }

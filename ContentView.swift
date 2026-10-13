@@ -1,11 +1,11 @@
 import SwiftUI
 import AVKit
 
-struct PiPContainerView: UIViewRepresentable {
+struct PiPSourceView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
+        let view = UIView(frame: CGRect(x: 0, y: 0, width: 220, height: 110))
+        view.backgroundColor = UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95)
+        view.layer.cornerRadius = 16
         view.clipsToBounds = true
         PiPHUDManager.shared.setupPiP(in: view)
         return view
@@ -29,12 +29,6 @@ struct ContentView: View {
             Color(red: 0.04, green: 0.05, blue: 0.09)
                 .ignoresSafeArea()
             
-            // View ngầm neo PiP
-            PiPContainerView()
-                .frame(width: 2, height: 2)
-                .opacity(0.01)
-                .allowsHitTesting(false)
-            
             VStack(spacing: 0) {
                 // Header
                 headerView
@@ -42,11 +36,11 @@ struct ContentView: View {
                 // Segmented Tabs
                 tabSelectorView
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
                 
                 // Nội dung các Tab
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 16) {
                         if currentTab == 0 {
                             tabHUDAndCrosshairView
                         } else if currentTab == 1 {
@@ -113,9 +107,7 @@ struct ContentView: View {
                 .foregroundColor(currentTab == index ? Color(red: 0.05, green: 0.08, blue: 0.14) : .gray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(
-                    currentTab == index ? Color(red: 0.0, green: 0.95, blue: 1.0) : Color.clear
-                )
+                .background(currentTab == index ? Color(red: 0.0, green: 0.95, blue: 1.0) : Color.clear)
                 .cornerRadius(9)
         }
     }
@@ -123,70 +115,83 @@ struct ContentView: View {
     // MARK: - Tab 0: Cửa Sổ PiP & Tâm Ngắm Ảo
     private var tabHUDAndCrosshairView: some View {
         VStack(spacing: 16) {
-            // Live Stats Card
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("FPS  \(Int(monitor.fps))")
-                        .font(.system(size: 32, weight: .black, design: .monospaced))
-                        .foregroundColor(monitor.fps >= 55 ? Color(red: 0.0, green: 1.0, blue: 0.5) : Color(red: 1.0, green: 0.8, blue: 0.0))
-                    
-                    Spacer()
-                    
-                    Circle()
-                        .fill(Color(red: 0.0, green: 1.0, blue: 0.5))
-                        .frame(width: 8, height: 8)
-                    Text("LIVE")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                }
+            // KHUNG PREVIEW TRỰC TIẾP
+            ZStack {
+                PiPSourceView()
+                    .frame(height: 120)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color(red: 0.0, green: 0.95, blue: 1.0).opacity(pipManager.selectedMode == .crosshairOnly ? 0.2 : 0.6), lineWidth: 2)
+                    )
                 
-                Divider().background(Color.white.opacity(0.12))
-                
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("RAM ĐANG DÙNG")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.gray)
-                        Text(String(format: "%.1f GB (%.0f%%)", monitor.usedRAM_MB / 1024.0, monitor.ramUsagePercent))
-                            .font(.system(size: 16, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text("ĐỘ TRỄ MẠNG (TCP)")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.gray)
-                        Text("\(monitor.pingMs) ms")
-                            .font(.system(size: 16, weight: .bold, design: .monospaced))
-                            .foregroundColor(monitor.pingMs < 35 ? Color(red: 0.0, green: 0.95, blue: 1.0) : (monitor.pingMs < 75 ? Color.yellow : Color.red))
+                // Hiển thị tâm ngắm trong suốt
+                if pipManager.selectedMode == .crosshairOnly {
+                    VStack {
+                        ZStack {
+                            Circle()
+                                .fill(crosshairSwiftColor())
+                                .frame(width: 8, height: 8)
+                            
+                            Rectangle()
+                                .fill(Color(red: 0.0, green: 0.95, blue: 1.0))
+                                .frame(width: 2, height: 16)
+                                .offset(y: -14)
+                            Rectangle()
+                                .fill(Color(red: 0.0, green: 0.95, blue: 1.0))
+                                .frame(width: 2, height: 16)
+                                .offset(y: 14)
+                            Rectangle()
+                                .fill(Color(red: 0.0, green: 0.95, blue: 1.0))
+                                .frame(width: 16, height: 2)
+                                .offset(x: -14)
+                            Rectangle()
+                                .fill(Color(red: 0.0, green: 0.95, blue: 1.0))
+                                .frame(width: 16, height: 2)
+                                .offset(x: 14)
+                        }
+                        
+                        Text("🎯 CHẾ ĐỘ TRONG SUỐT (CHỈ HIỆN TÂM ĐỎ)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(crosshairSwiftColor())
+                            .padding(.top, 8)
                     }
                 }
             }
-            .padding(18)
-            .background(Color(red: 0.08, green: 0.10, blue: 0.16))
-            .cornerRadius(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(red: 0.0, green: 0.95, blue: 1.0).opacity(0.35), lineWidth: 1.5)
-            )
+            .frame(height: 120)
             
-            // Chế độ hiển thị cửa sổ nổi
+            // Bộ chọn chế độ
             VStack(alignment: .leading, spacing: 10) {
-                Text("CHẾ ĐỘ CỬA SỔ NỔI PiP:")
+                Text("CHỌN CHẾ ĐỘ HIỂN THỊ:")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.gray)
                 
                 HStack(spacing: 8) {
                     modePillButton(title: "📊 Chỉ Số", mode: .statsOnly)
-                    modePillButton(title: "🎯 Tâm Ngắm Ảo", mode: .crosshairOnly)
+                    modePillButton(title: "🎯 Tâm Trong Suốt", mode: .crosshairOnly)
                     modePillButton(title: "⚡ Kết Hợp", mode: .combo)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Nút Bật/Tắt Cửa Sổ Nổi
+            // Chọn màu tâm
+            if pipManager.selectedMode == .crosshairOnly || pipManager.selectedMode == .combo {
+                HStack(spacing: 12) {
+                    Text("MÀU TÂM:")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.gray)
+                    
+                    colorCircle(color: Color.red, uiColor: UIColor.red, name: "red")
+                    colorCircle(color: Color.green, uiColor: UIColor.green, name: "green")
+                    colorCircle(color: Color.yellow, uiColor: UIColor.yellow, name: "yellow")
+                    colorCircle(color: Color.cyan, uiColor: UIColor.cyan, name: "cyan")
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+            }
+            
+            // Nút Bật/Tắt Cửa Sổ Nổi PiP
             Button(action: {
                 if pipManager.isPiPActive {
                     pipManager.stopPiP()
@@ -243,15 +248,14 @@ struct ContentView: View {
                 Text(msg)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(red: 0.0, green: 1.0, blue: 0.5))
-                    .transition(.opacity)
             }
             
-            // Mẹo dùng tâm ngắm ảo
+            // Hướng dẫn đặt tâm giữa màn hình
             VStack(alignment: .leading, spacing: 6) {
-                Text("🎯 MẸO DÙNG TÂM NGẮM ẢO:")
+                Text("🎯 HƯỚNG DẪN KHÓA TÂM VÀO GIỮA MÀN HÌNH:")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(Color(red: 1.0, green: 0.7, blue: 0.0))
-                Text("Khi chọn 'Tâm Ngắm Ảo' và bật PiP, bạn kéo khung nổi vào chính giữa màn hình. Khi cầm súng ngắm AWM / Barrett hoặc Shotgun không cần mở ngắm vẫn có tâm đỏ ngay giữa màn hình để headshot cực chuẩn!")
+                Text("• Cửa sổ nổi PiP bây giờ đã hoàn toàn TRONG SUỐT (chỉ hiện duy nhất chấm tâm đỏ và 4 vạch ngắm, xóa sạch nền đen).\n• Khi mở game, bạn chỉ cần dùng ngón tay kéo khung nổi vào chính giữa tâm bắn là nó sẽ cố định ngay điểm đó để bạn headshot cực chuẩn!")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
             }
@@ -275,12 +279,35 @@ struct ContentView: View {
         }
     }
     
+    private func colorCircle(color: Color, uiColor: UIColor, name: String) -> some View {
+        Button(action: {
+            pipManager.setCrosshairColor(uiColor, hex: name)
+        }) {
+            Circle()
+                .fill(color)
+                .frame(width: 24, height: 24)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: pipManager.selectedColorHex == name ? 2.5 : 0)
+                )
+        }
+    }
+    
+    private func crosshairSwiftColor() -> Color {
+        switch pipManager.selectedColorHex {
+        case "green": return Color.green
+        case "yellow": return Color.yellow
+        case "cyan": return Color(red: 0.0, green: 0.95, blue: 1.0)
+        default: return Color(red: 1.0, green: 0.15, blue: 0.35)
+        }
+    }
+    
     // MARK: - Tab 1: Sensi Regedit Mod
     private var tabSensiRegeditView: some View {
         VStack(spacing: 16) {
             // Chọn thiết bị
             VStack(alignment: .leading, spacing: 8) {
-                Text("CHỌN DÒNG MÁY:")
+                Text("CHỌN DÒNG MÁY CỦA BẠN:")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.gray)
                 
@@ -304,7 +331,6 @@ struct ContentView: View {
                 }
             }
             
-            // Bảng thông số Sensi đã tính toán
             sensiResultCard
         }
     }
@@ -353,7 +379,7 @@ struct ContentView: View {
             }
             
             HStack {
-                Text("📍 Vị trí nút bắn: Đặt thấp sát mép dưới, cách cạnh phải 15% màn hình.")
+                Text("📍 Vị trí nút bắn: Đặt thấp sát mép dưới màn hình.")
                     .font(.system(size: 11))
                     .foregroundColor(.gray)
                 Spacer()
@@ -401,10 +427,10 @@ struct ContentView: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(Color(red: 0.0, green: 0.95, blue: 1.0))
             
-            guideItem(title: "1. Điều khiển công tắc (Switch Control)", detail: "Kiểu quét: Tinh chỉnh • Tốc độ con trỏ lướt: 120 (Max để vuốt thẳng tắp không rung)")
-            guideItem(title: "2. Thích nghi cảm ứng (Touch Accommodations)", detail: "Thời gian giữ: TẮT (0ms để nhẹ tâm, phá lì) • Bỏ qua lặp lại: 0.10s")
-            guideItem(title: "3. AssistiveTouch", detail: "Độ nhạy di chuyển: 90% - 95% • Dung sai di chuyển: 35%")
-            guideItem(title: "4. Chuyển động (Motion)", detail: "BẬT 'Giảm chuyển động' (Reduce Motion) để khóa cứng 60/120 FPS")
+            guideItem(title: "1. Điều khiển công tắc (Switch Control)", detail: "Kiểu quét: Tinh chỉnh • Tốc độ con trỏ lướt: 120 (Max)")
+            guideItem(title: "2. Thích nghi cảm ứng (Touch Accommodations)", detail: "Thời gian giữ: TẮT (0ms) • Bỏ qua lặp lại: 0.10s")
+            guideItem(title: "3. AssistiveTouch", detail: "Độ nhạy di chuyển: 90% - 95% • Dung sai: 35%")
+            guideItem(title: "4. Chuyển động (Motion)", detail: "BẬT 'Giảm chuyển động' (Reduce Motion)")
         }
         .padding(16)
         .background(Color(red: 0.08, green: 0.10, blue: 0.16))
