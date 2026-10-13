@@ -3,8 +3,10 @@ import AVKit
 
 struct PiPContainerView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+        let view = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
         view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
         PiPHUDManager.shared.setupPiP(in: view)
         return view
     }
@@ -18,18 +20,19 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // Nền tối Cyber
+            // Nền tối Cyberpunk
             Color(red: 0.04, green: 0.05, blue: 0.09)
                 .ignoresSafeArea()
             
-            // Hidden View để neo AVSampleBufferDisplayLayer cho PiP
+            // View ngầm để neo PiP (không che màn hình)
             PiPContainerView()
-                .frame(width: 1, height: 1)
+                .frame(width: 2, height: 2)
                 .opacity(0.01)
+                .allowsHitTesting(false)
             
-            VStack(spacing: 24) {
+            VStack(spacing: 22) {
                 // Header
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     Text("⚡ GAMING HUD PRO")
                         .font(.system(size: 26, weight: .black, design: .rounded))
                         .foregroundStyle(
@@ -40,17 +43,17 @@ struct ContentView: View {
                             )
                         )
                     
-                    Text("Cửa sổ nổi theo dõi FPS, RAM & Ping khi chơi game")
+                    Text("Cửa sổ nổi hiển thị FPS, RAM & Ping khi chơi game")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.gray)
                 }
                 .padding(.top, 20)
                 
-                // Khung mô phỏng HUD
+                // Khung hiển thị thông số trực tiếp
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("FPS  \(Int(monitor.fps))")
-                            .font(.system(size: 32, weight: .black, design: .monospaced))
+                            .font(.system(size: 34, weight: .black, design: .monospaced))
                             .foregroundColor(monitor.fps >= 55 ? Color(red: 0.0, green: 1.0, blue: 0.5) : Color(red: 1.0, green: 0.8, blue: 0.0))
                         
                         Spacer()
@@ -63,7 +66,7 @@ struct ContentView: View {
                             .foregroundColor(.white)
                     }
                     
-                    Divider().background(Color.white.opacity(0.1))
+                    Divider().background(Color.white.opacity(0.15))
                     
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -83,7 +86,7 @@ struct ContentView: View {
                                 .foregroundColor(.gray)
                             Text("\(monitor.pingMs) ms")
                                 .font(.system(size: 18, weight: .bold, design: .monospaced))
-                                .foregroundColor(monitor.pingMs < 30 ? Color(red: 0.0, green: 0.95, blue: 1.0) : Color.red)
+                                .foregroundColor(monitor.pingMs < 40 ? Color(red: 0.0, green: 0.95, blue: 1.0) : Color.red)
                         }
                     }
                 }
@@ -98,7 +101,7 @@ struct ContentView: View {
                 )
                 .padding(.horizontal, 20)
                 
-                // Nút Bật/Tắt Cửa Sổ Nổi PiP
+                // Nút Bật / Tắt Cửa Sổ Nổi PiP
                 Button(action: {
                     if pipManager.isPiPActive {
                         pipManager.stopPiP()
@@ -110,23 +113,21 @@ struct ContentView: View {
                         Image(systemName: pipManager.isPiPActive ? "stop.circle.fill" : "pip.enter")
                             .font(.system(size: 20, weight: .bold))
                         
-                        Text(pipManager.isPiPActive ? "TẮT CỬA SỔ NỔI" : "BẬT CỬA SỔ NỔI (START PiP)")
+                        Text(pipManager.isPiPActive ? "ĐANG BẬT CỬA SỔ NỔI" : "BẬT CỬA SỔ NỔI (START PiP)")
                             .font(.system(size: 16, weight: .heavy))
                     }
-                    .foregroundColor(pipManager.isPiPActive ? .white : Color(red: 0.05, green: 0.08, blue: 0.14))
+                    .foregroundColor(Color(red: 0.05, green: 0.08, blue: 0.14))
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(
-                        Group {
-                            if pipManager.isPiPActive {
-                                LinearGradient(colors: [Color.red, Color.purple], startPoint: .leading, endPoint: .trailing)
-                            } else {
-                                LinearGradient(colors: [Color(red: 0.0, green: 0.95, blue: 1.0), Color(red: 0.2, green: 0.6, blue: 1.0)], startPoint: .leading, endPoint: .trailing)
-                            }
-                        }
+                        LinearGradient(
+                            colors: pipManager.isPiPActive ? [Color(red: 0.0, green: 1.0, blue: 0.5), Color(red: 0.0, green: 0.8, blue: 0.8)] : [Color(red: 0.0, green: 0.95, blue: 1.0), Color(red: 0.2, green: 0.6, blue: 1.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
                     .cornerRadius(14)
-                    .shadow(color: Color(red: 0.0, green: 0.95, blue: 1.0).opacity(pipManager.isPiPActive ? 0.2 : 0.5), radius: 15, x: 0, y: 5)
+                    .shadow(color: Color(red: 0.0, green: 0.95, blue: 1.0).opacity(0.4), radius: 15, x: 0, y: 5)
                 }
                 .padding(.horizontal, 20)
                 
@@ -144,7 +145,7 @@ struct ContentView: View {
                 .foregroundColor(.gray)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(Color.white.opacity(0.03))
+                .background(Color.white.opacity(0.04))
                 .cornerRadius(12)
                 .padding(.horizontal, 20)
                 

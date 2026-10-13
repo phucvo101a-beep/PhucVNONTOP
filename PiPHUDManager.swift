@@ -2,10 +2,99 @@ import Foundation
 import UIKit
 import AVKit
 import AVFoundation
-import CoreMedia
-import VideoToolbox
 
-/// Quản lý luồng hiển thị cửa sổ nổi Picture-in-Picture (PiP) đè lên màn hình game
+/// Controller hiển thị giao diện Gaming HUD trong cửa sổ PiP nổi
+public final class HUDViewController: UIViewController {
+    public let fpsLabel = UILabel()
+    public let ramLabel = UILabel()
+    public let pingLabel = UILabel()
+    public let dotView = UIView()
+    public let liveLabel = UILabel()
+    
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // 1. Nền Cyberpunk tối và viền Neon Cyan
+        view.backgroundColor = UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95)
+        view.layer.cornerRadius = 14
+        view.layer.borderWidth = 2
+        view.layer.borderColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.85).cgColor
+        view.clipsToBounds = true
+        
+        // 2. Nhãn FPS
+        fpsLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 28, weight: .black)
+        fpsLabel.textColor = UIColor(red: 0.0, green: 1.0, blue: 0.5, alpha: 1.0)
+        fpsLabel.text = "FPS  60"
+        
+        // Chấm LIVE
+        dotView.backgroundColor = UIColor(red: 0.0, green: 1.0, blue: 0.5, alpha: 1.0)
+        dotView.layer.cornerRadius = 4
+        dotView.translatesAutoresizingMaskIntoConstraints = false
+        
+        liveLabel.text = "LIVE"
+        liveLabel.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        liveLabel.textColor = .white
+        liveLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        let liveStack = UIStackView(arrangedSubviews: [dotView, liveLabel])
+        liveStack.axis = .horizontal
+        liveStack.spacing = 4
+        liveStack.alignment = .center
+        
+        let topStack = UIStackView(arrangedSubviews: [fpsLabel, liveStack])
+        topStack.axis = .horizontal
+        topStack.distribution = .equalSpacing
+        topStack.alignment = .center
+        
+        // Đường kẻ phân cách
+        let separator = UIView()
+        separator.backgroundColor = UIColor(white: 1.0, alpha: 0.15)
+        separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
+        
+        // 3. Nhãn RAM & PING
+        ramLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
+        ramLabel.textColor = .white
+        ramLabel.text = "RAM: 2.0 GB (50%)"
+        
+        pingLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        pingLabel.textColor = UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0)
+        pingLabel.text = "PING: 15 ms • CPU: 10%"
+        
+        let bottomStack = UIStackView(arrangedSubviews: [ramLabel, pingLabel])
+        bottomStack.axis = .vertical
+        bottomStack.spacing = 3
+        
+        let mainStack = UIStackView(arrangedSubviews: [topStack, separator, bottomStack])
+        mainStack.axis = .vertical
+        mainStack.spacing = 6
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(mainStack)
+        
+        NSLayoutConstraint.activate([
+            dotView.widthAnchor.constraint(equalToConstant: 8),
+            dotView.heightAnchor.constraint(equalToConstant: 8),
+            
+            mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
+        ])
+    }
+    
+    public func updateStats() {
+        let monitor = SystemMonitor.shared
+        let fpsVal = Int(monitor.fps)
+        fpsLabel.text = "FPS  \(fpsVal)"
+        fpsLabel.textColor = fpsVal >= 55 ? UIColor(red: 0.0, green: 1.0, blue: 0.5, alpha: 1.0) : UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 1.0)
+        
+        ramLabel.text = String(format: "RAM: %.1f GB (%.0f%%)", monitor.usedRAM_MB / 1024.0, monitor.ramUsagePercent)
+        
+        pingLabel.text = String(format: "PING: %d ms • CPU: %.0f%%", monitor.pingMs, monitor.cpuUsagePercent)
+        pingLabel.textColor = monitor.pingMs < 40 ? UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0) : (monitor.pingMs < 80 ? UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 1.0) : UIColor(red: 1.0, green: 0.3, blue: 0.4, alpha: 1.0))
+    }
+}
+
+/// Trình quản lý PiP độc quyền - Sử dụng AVPictureInPictureVideoCallViewController để KHÔNG BAO GIỜ BỊ MÀN HÌNH ĐEN
 public final class PiPHUDManager: NSObject, ObservableObject {
     public static let shared = PiPHUDManager()
     
@@ -13,13 +102,8 @@ public final class PiPHUDManager: NSObject, ObservableObject {
     @Published public var isPiPSupported: Bool = false
     
     private var pipController: AVPictureInPictureController?
-    private var sampleBufferLayer = AVSampleBufferDisplayLayer()
-    private var renderTimer: Timer?
-    private var pixelBufferPool: CVPixelBufferPool?
-    
-    // Cấu hình kích thước khung hình nổi PiP (Chuẩn 400x180 px tỉ lệ siêu nét)
-    private let frameWidth: Int = 400
-    private let frameHeight: Int = 180
+    private var hudVC: HUDViewController?
+    private var updateTimer: Timer?
     
     private override init() {
         super.init()
@@ -29,11 +113,10 @@ public final class PiPHUDManager: NSObject, ObservableObject {
     
     private func setupAudioSession() {
         do {
-            // Cần audio session playback để iOS cho phép PiP chạy ngầm khi mở game khác
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("Lỗi cấu hình AVAudioSession: \(error)")
+            print("AudioSession Error: \(error)")
         }
     }
     
@@ -41,161 +124,60 @@ public final class PiPHUDManager: NSObject, ObservableObject {
         isPiPSupported = AVPictureInPictureController.isPictureInPictureSupported()
     }
     
-    /// Khởi tạo layer PiP và gán vào một UIView trong App
-    public func setupPiP(in parentView: UIView) {
+    public func setupPiP(in sourceView: UIView) {
         guard isPiPSupported else { return }
         
-        sampleBufferLayer.frame = CGRect(x: 0, y: 0, width: 200, height: 90)
-        sampleBufferLayer.videoGravity = .resizeAspect
-        parentView.layer.addSublayer(sampleBufferLayer)
-        
         if #available(iOS 15.0, *) {
-            let contentSource = AVPictureInPictureController.ContentSource(sampleBufferDisplayLayer: sampleBufferLayer, playbackDelegate: self)
+            let callVC = AVPictureInPictureVideoCallViewController()
+            callVC.preferredContentSize = CGSize(width: 220, height: 100)
+            
+            let hud = HUDViewController()
+            callVC.addChild(hud)
+            callVC.view.addSubview(hud.view)
+            hud.view.frame = CGRect(x: 0, y: 0, width: 220, height: 100)
+            hud.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            hud.didMove(toParent: callVC)
+            
+            self.hudVC = hud
+            
+            let contentSource = AVPictureInPictureController.ContentSource(
+                activeVideoCallSourceView: sourceView,
+                contentViewController: callVC
+            )
+            
             pipController = AVPictureInPictureController(contentSource: contentSource)
             pipController?.delegate = self
             pipController?.canStartPictureInPictureAutomaticallyFromInline = true
         }
         
-        createPixelBufferPool()
+        startUpdating()
     }
     
     public func startPiP() {
-        guard let pip = pipController, !pip.isPictureInPictureActive else { return }
-        
-        startRenderingFrames()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            pip.startPictureInPicture()
+        guard let pip = pipController else { return }
+        if !pip.isPictureInPictureActive {
+            startUpdating()
+            hudVC?.updateStats()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                pip.startPictureInPicture()
+            }
         }
     }
     
     public func stopPiP() {
         pipController?.stopPictureInPicture()
-        stopRenderingFrames()
     }
     
-    private func startRenderingFrames() {
-        stopRenderingFrames()
-        // Render 30 FPS để mượt mà mà vẫn siêu tiết kiệm pin
-        renderTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            self?.renderCurrentHUDFrame()
+    private func startUpdating() {
+        stopUpdating()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.hudVC?.updateStats()
         }
     }
     
-    private func stopRenderingFrames() {
-        renderTimer?.invalidate()
-        renderTimer = nil
-    }
-    
-    private func createPixelBufferPool() {
-        let poolAttributes: [String: Any] = [kCVPixelBufferPoolMinimumBufferCountKey as String: 3]
-        let pixelBufferAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: frameWidth,
-            kCVPixelBufferHeightKey as String: frameHeight,
-            kCVPixelBufferCGImageCompatibilityKey as String: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
-        ]
-        CVPixelBufferPoolCreate(kCFAllocatorDefault, poolAttributes as CFDictionary, pixelBufferAttributes as CFDictionary, &pixelBufferPool)
-    }
-    
-    /// Vẽ bảng thông số Gaming HUD trực tiếp vào khung video PiP
-    private func renderCurrentHUDFrame() {
-        guard let pool = pixelBufferPool else { return }
-        var maybePixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &maybePixelBuffer)
-        guard status == kCVReturnSuccess, let pixelBuffer = maybePixelBuffer else { return }
-        
-        CVPixelBufferLockBaseAddress(pixelBuffer, [])
-        let data = CVPixelBufferGetBaseAddress(pixelBuffer)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        
-        guard let context = CGContext(
-            data: data,
-            width: frameWidth,
-            height: frameHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else {
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
-            return
-        }
-        
-        UIGraphicsPushContext(context)
-        
-        // 1. Nền tối Cyber Gaming
-        let rect = CGRect(x: 0, y: 0, width: frameWidth, height: frameHeight)
-        context.setFillColor(UIColor(red: 0.05, green: 0.07, blue: 0.12, alpha: 0.95).cgColor)
-        context.fill(rect)
-        
-        // 2. Viền phát sáng Neon Cyan
-        let borderPath = UIBezierPath(roundedRect: rect.insetBy(dx: 4, dy: 4), cornerRadius: 14)
-        borderPath.lineWidth = 3
-        UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.8).setStroke()
-        borderPath.stroke()
-        
-        let monitor = SystemMonitor.shared
-        
-        // 3. Vẽ Chỉ số FPS
-        let fpsText = String(format: "FPS  %.0f", monitor.fps)
-        let fpsAttr: [NSAttributedString.Key: Any] = [
-            .font: UIFont.monospacedDigitSystemFont(ofSize: 34, weight: .black),
-            .foregroundColor: monitor.fps >= 55 ? UIColor(red: 0.0, green: 1.0, blue: 0.5, alpha: 1.0) : UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 1.0)
-        ]
-        fpsText.draw(at: CGPoint(x: 20, y: 22), withAttributes: fpsAttr)
-        
-        // 4. Vẽ Chỉ số RAM & PING
-        let ramText = String(format: "RAM: %.1f GB (%.0f%%)", monitor.usedRAM_MB / 1024.0, monitor.ramUsagePercent)
-        let ramAttr: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 22, weight: .bold),
-            .foregroundColor: UIColor.white
-        ]
-        ramText.draw(at: CGPoint(x: 20, y: 75), withAttributes: ramAttr)
-        
-        let pingText = String(format: "PING: %d ms • CPU: %.0f%%", monitor.pingMs, monitor.cpuUsagePercent)
-        let pingAttr: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 20, weight: .semibold),
-            .foregroundColor: monitor.pingMs < 30 ? UIColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0) : UIColor(red: 1.0, green: 0.3, blue: 0.4, alpha: 1.0)
-        ]
-        pingText.draw(at: CGPoint(x: 20, y: 115), withAttributes: pingAttr)
-        
-        UIGraphicsPopContext()
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
-        
-        // Đóng gói CMSampleBuffer và gửi tới layer PiP
-        feedPixelBufferToLayer(pixelBuffer)
-    }
-    
-    private func feedPixelBufferToLayer(_ pixelBuffer: CVPixelBuffer) {
-        var formatDescription: CMFormatDescription?
-        CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: pixelBuffer, formatDescriptionOut: &formatDescription)
-        guard let format = formatDescription else { return }
-        
-        var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 30),
-            presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
-            decodeTimeStamp: .invalid
-        )
-        
-        var sampleBuffer: CMSampleBuffer?
-        CMSampleBufferCreateReadyWithImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: pixelBuffer,
-            formatDescription: format,
-            sampleTiming: &timing,
-            sampleBufferOut: &sampleBuffer
-        )
-        
-        guard let buffer = sampleBuffer else { return }
-        
-        if sampleBufferLayer.status == .failed {
-            sampleBufferLayer.flush()
-        }
-        
-        if sampleBufferLayer.isReadyForMoreMediaData {
-            sampleBufferLayer.enqueue(buffer)
-        }
+    private func stopUpdating() {
+        updateTimer?.invalidate()
+        updateTimer = nil
     }
 }
 
@@ -206,22 +188,6 @@ extension PiPHUDManager: AVPictureInPictureControllerDelegate {
     }
     
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        DispatchQueue.main.async {
-            self.isPiPActive = false
-            self.stopRenderingFrames()
-        }
-    }
-}
-
-// MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
-extension PiPHUDManager: AVPictureInPictureSampleBufferPlaybackDelegate {
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {}
-    public func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
-        return CMTimeRange(start: .zero, duration: CMTime(value: 100000, timescale: 1))
-    }
-    public func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool { return false }
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {}
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
-        completionHandler()
+        DispatchQueue.main.async { self.isPiPActive = false }
     }
 }
