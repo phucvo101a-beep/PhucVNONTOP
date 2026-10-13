@@ -31,7 +31,29 @@ jobs:
         mv GamingHUD Payload/GamingHUD.app/
         cp Info.plist Payload/GamingHUD.app/
 
-        # 3. Đóng gói thành file IPA chuẩn cho ESign
+        # 3. Tự động tạo Logo App Gaming Neon Cyberpunk
+        python3 -c "
+        import zlib, struct, math
+        def make_png(w, h):
+            raw = b''
+            for y in range(h):
+                row = bytearray(w * 4)
+                for x in range(w):
+                    dx, dy = x - w/2, y - h/2
+                    dist = math.sqrt(dx*dx + dy*dy)
+                    r, g, b = 10, 14, 24
+                    if 0.3*w <= dist <= 0.35*w: r, g, b = 0, 242, 254
+                    elif (abs(dx) <= 2 and 0.2*w <= abs(dy) <= 0.42*w) or (abs(dy) <= 2 and 0.2*w <= abs(dx) <= 0.42*w): r, g, b = 0, 242, 254
+                    elif dist <= 0.05*w: r, g, b = 0, 255, 128
+                    row[x*4:x*4+4] = bytes([r, g, b, 255])
+                raw += b'\x00' + bytes(row)
+            def c(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+            return b'\x89PNG\r\n\x1a\n' + c(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + c(b'IDAT', zlib.compress(raw)) + c(b'IEND', b'')
+        for name, sz in [('AppIcon.png', 180), ('AppIcon60x60@2x.png', 120), ('AppIcon60x60@3x.png', 180)]:
+            with open('Payload/GamingHUD.app/' + name, 'wb') as f: f.write(make_png(sz, sz))
+        "
+
+        # 4. Đóng gói thành file IPA chuẩn cho ESign
         zip -r -y GamingHUD.ipa Payload
 
     - name: Upload IPA Artifact
